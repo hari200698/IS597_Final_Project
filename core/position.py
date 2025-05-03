@@ -1,5 +1,5 @@
 import math
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple, Any, Optional
 
 class Position3D:
     """
@@ -92,7 +92,15 @@ class Position3D:
         elif relative_yaw < -180:
             relative_yaw += 360
 
-        return target_roll, relative_pitch, relative_yaw
+        # Calculate relative roll
+        relative_roll = target_roll - self.roll
+        # Normalize to -180 to +180 range
+        if relative_roll > 180:
+          relative_roll -= 360
+        elif relative_roll < -180:
+          relative_roll += 360
+
+        return relative_roll, relative_pitch, relative_yaw
 
     def is_within_field_of_view(self, target: 'Position3D',
                                fov_horizontal: float, fov_vertical: float) -> bool:
@@ -111,4 +119,3 @@ class Position3D:
 
         return (abs(rel_yaw)   <= fov_horizontal / 2 and
                 abs(rel_pitch) <= fov_vertical   / 2)
-
