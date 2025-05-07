@@ -14,8 +14,9 @@ class Camera(Sensor):
                  resolution: Tuple[int, int], fov: float):
         super().__init__(name, "camera", position, range)
         self.resolution = resolution
-        self.fov = fov
-        self.vertical_fov = fov * (resolution[1] / resolution[0])  # Approximation based on aspect ratio
+        self.horizontal_fov = fov
+        self.aspect_ratio = (resolution[1] / resolution[0])
+        self.vertical_fov = 2 * math.atan(math.tan(math.radians(fov / 2)) / self.aspect_ratio)
 
     def can_detect(self, target_position: Position3D) -> bool:
         """
@@ -32,5 +33,5 @@ class Camera(Sensor):
 
         # Check if within field of view
         return self.position.is_within_field_of_view(
-            target_position, self.fov, self.vertical_fov
+            target_position, self.horizontal_fov, self.vertical_fov
         )
