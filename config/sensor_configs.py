@@ -7,15 +7,15 @@ def create_tesla_vision_config():
     Returns:
         dict: A dictionary containing Tesla Vision sensor configurations
     """
-    # Tesla Model 3/Y dimensions (in meters)
+    # Tesla Model 3/Y approximate dimensions (in meters)
     vehicle_length = 4.7
     vehicle_width = 1.9
     vehicle_height = 1.5
 
     # Reference coordinate system:
-    # - Origin (0,0,0) is at the center of the vehicle
+    # - Origin (0,0,0) is at the center of the vehicle projected on to the ground
     # - X-axis points forward (positive = front of vehicle)
-    # - Y-axis points to the left side of the vehicle (when facing forward)
+    # - Y-axis points to the right side of the vehicle (when facing forward)
     # - Z-axis points upward
 
     # Tesla Vision camera configuration
@@ -23,15 +23,15 @@ def create_tesla_vision_config():
         # Three forward cameras in windshield housing
         "main_forward_camera": {
             "type": "camera",
-            "position": [2.1, 0.0, 0.7],  # Center windshield, upper
+            "position": [0.8,0.0, 1.5],  # Center windshield, upper
             "orientation": [0, 0, 0],  # [roll, pitch, yaw] in degrees
             "field_of_view": 60,  # horizontal FOV in degrees
-            "range": 150,  # in meters
+            "range": 120,  # in meters
             "resolution": [1280, 960]  # pixels
         },
         "forward_wide_camera": {
             "type": "camera",
-            "position": [2.1, 0.0, 0.69],  # Center windshield, upper, same housing
+            "position": [0.8,0.2,1.5],  # Center windshield, upper, same housing
             "orientation": [0, 0, 0],
             "field_of_view": 120,  # wider FOV
             "range": 60,
@@ -39,17 +39,17 @@ def create_tesla_vision_config():
         },
         "forward_narrow_camera": {
             "type": "camera",
-            "position": [2.1, 0.0, 0.71],  # Center windshield, upper, same housing
+            "position": [0.8,-0.2, 1.5],  # Center windshield, upper, same housing
             "orientation": [0, 0, 0],
             "field_of_view": 35,  # narrow FOV for long range
-            "range": 250,
+            "range": 180,
             "resolution": [1280, 960]
         },
 
         # B-pillar cameras
         "left_b_pillar_camera": {
             "type": "camera",
-            "position": [0.2, 0.95, 0.4],  # Left B-pillar
+            "position": [0.2, -0.95, 1.15],  # Left B-pillar
             "orientation": [0, 0, 90],  # facing left
             "field_of_view": 90,
             "range": 80,
@@ -57,7 +57,7 @@ def create_tesla_vision_config():
         },
         "right_b_pillar_camera": {
             "type": "camera",
-            "position": [0.2, -0.95, 0.4],  # Right B-pillar
+            "position": [0.2, 0.95, 1.15],  # Right B-pillar
             "orientation": [0, 0, -90],  # facing right
             "field_of_view": 90,
             "range": 80,
@@ -65,9 +65,10 @@ def create_tesla_vision_config():
         },
 
         # Front fender cameras (rearward looking)
+        # Tesla's actual fender cameras likely point backward at ~110° to ~135° depending on the model and year.
         "left_front_fender_camera": {
             "type": "camera",
-            "position": [1.8, 0.95, 0.3],  # Left front fender
+            "position": [1.8, -0.95, 1.05],  # Left front fender
             "orientation": [0, 0, 125],  # angled backward on left side
             "field_of_view": 90,
             "range": 80,
@@ -75,7 +76,7 @@ def create_tesla_vision_config():
         },
         "right_front_fender_camera": {
             "type": "camera",
-            "position": [1.8, -0.95, 0.3],  # Right front fender
+            "position": [1.8, 0.95, 1.05],  # Right front fender
             "orientation": [0, 0, -125],  # angled backward on right side
             "field_of_view": 90,
             "range": 80,
@@ -85,7 +86,7 @@ def create_tesla_vision_config():
         # Rear camera
         "rear_camera": {
             "type": "camera",
-            "position": [-2.35, 0.0, 0.4],  # Center rear, above license plate
+            "position": [-2.35, 0.0, 1.15],  # Center rear, above license plate
             "orientation": [0, 0, 180],  # facing rear
             "field_of_view": 120,
             "range": 50,
@@ -110,193 +111,140 @@ def create_mercedes_drive_pilot_config():
 
     # Mercedes Drive Pilot sensor configuration
     config = {
-        # Cameras
-        "stereo_multipurpose_camera": {
+        # Camera Systems
+        "stereo_multi_purpose_camera": {
             "type": "camera",
-            "position": [2.4, 0.0, 0.7],  # Upper center of windshield
+            "position": [0.9, 0.0, 1.4],  # Behind windshield, upper center
+            "orientation": [0, 0, 0],  # Forward-facing
+            "field_of_view": 45,  # Horizontal FOV in degrees
+            "range": 150,  # in meters
+            "resolution": [1920, 1080]  # pixels
+        },
+        "long_range_camera": {
+            "type": "camera",
+            "position": [0.9, 0.1, 1.4],  # Behind windshield, adjacent to stereo camera
             "orientation": [0, 0, 0],
-            "field_of_view": 120,
-            "range": 180,
+            "field_of_view": 25,  # Narrower FOV for long range
+            "range": 250,
             "resolution": [1920, 1080]
         },
         "front_surround_camera": {
             "type": "camera",
-            "position": [2.6, 0.0, 0.0],  # Front grille
+            "position": [2.55, 0.0, 0.7],  # Front grille
             "orientation": [0, 0, 0],
             "field_of_view": 180,
             "range": 20,
-            "resolution": [1280, 720]
+            "resolution": [1280, 960]
+        },
+        "left_surround_camera": {
+            "type": "camera",
+            "position": [0.0, -1.05, 0.9],  # Left side mirror
+            "orientation": [0, 0, 90],  # Facing left
+            "field_of_view": 180,
+            "range": 20,
+            "resolution": [1280, 960]
+        },
+        "right_surround_camera": {
+            "type": "camera",
+            "position": [0.0, 1.05, 0.9],  # Right side mirror
+            "orientation": [0, 0, -90],  # Facing right
+            "field_of_view": 180,
+            "range": 20,
+            "resolution": [1280, 960]
         },
         "rear_surround_camera": {
             "type": "camera",
-            "position": [-2.6, 0.0, 0.4],  # Trunk lid
-            "orientation": [0, 0, 180],
+            "position": [-2.6, 0.0, 1.0],  # Trunk/license plate area
+            "orientation": [0, 0, 180],  # Facing rear
             "field_of_view": 180,
             "range": 20,
-            "resolution": [1280, 720]
+            "resolution": [1280, 960]
         },
-        "left_mirror_camera": {
+        "night_vision_camera": {
             "type": "camera",
-            "position": [0.8, 1.05, 0.3],  # Left side mirror
-            "orientation": [0, 0, 90],
-            "field_of_view": 180,
-            "range": 20,
-            "resolution": [1280, 720]
-        },
-        "right_mirror_camera": {
-            "type": "camera",
-            "position": [0.8, -1.05, 0.3],  # Right side mirror
-            "orientation": [0, 0, -90],
-            "field_of_view": 180,
-            "range": 20,
-            "resolution": [1280, 720]
+            "position": [2.5, 0.0, 0.5],  # Lower front grille
+            "orientation": [0, 0, 0],
+            "field_of_view": 24,
+            "range": 160,
+            "resolution": [640, 480]
         },
 
-        # Radar systems
-        "long_range_front_radar": {
+        # Radar Systems
+        "front_long_range_radar": {
             "type": "radar",
-            "position": [2.6, 0.0, -0.3],  # Front bumper center
+            "position": [2.55, 0.0, 0.6],  # Front bumper center
             "orientation": [0, 0, 0],
-            "field_of_view": 60,
+            "field_of_view": 18,
             "range": 250,
-            "resolution": "high"
+            'a': 0.1,   # Sigmoid steepness
+            'd0': 120   # Midpoint (distance where probability is ~50%)
         },
         "front_left_corner_radar": {
             "type": "radar",
-            "position": [2.5, 0.9, -0.3],  # Front bumper, left corner
-            "orientation": [0, 0, 45],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
+            "position": [2.4, -0.9, 0.4],  # Front left corner
+            "orientation": [0, 0, 45],  # Angled outward
+            "field_of_view": 150,
+            "range": 80,
+            'a': 0.1,   # Sigmoid steepness
+            'd0': 120   # Midpoint (distance where probability is ~50%)
         },
         "front_right_corner_radar": {
             "type": "radar",
-            "position": [2.5, -0.9, -0.3],  # Front bumper, right corner
-            "orientation": [0, 0, -45],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
+            "position": [2.4, 0.9, 0.4],  # Front right corner
+            "orientation": [0, 0, -45],  # Angled outward
+            "field_of_view": 150,
+            "range": 80,
+            'a': 0.1,   # Sigmoid steepness
+            'd0': 120   # Midpoint (distance where probability is ~50%)
         },
         "rear_left_corner_radar": {
             "type": "radar",
-            "position": [-2.5, 0.9, -0.3],  # Rear bumper, left corner
-            "orientation": [0, 0, 135],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
+            "position": [-2.4, -0.9, 0.4],  # Rear left corner
+            "orientation": [0, 0, 135],  # Angled outward
+            "field_of_view": 150,
+            "range": 80,
+            'a': 0.1,   # Sigmoid steepness
+            'd0': 120   # Midpoint (distance where probability is ~50%)
         },
         "rear_right_corner_radar": {
             "type": "radar",
-            "position": [-2.5, -0.9, -0.3],  # Rear bumper, right corner
-            "orientation": [0, 0, -135],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
+            "position": [-2.4, 0.9, 0.4],  # Rear right corner
+            "orientation": [0, 0, -135],  # Angled outward
+            "field_of_view": 150,
+            "range": 80,
+            'a': 0.1,   # Sigmoid steepness
+            'd0': 120   # Midpoint (distance where probability is ~50%)
         },
 
-        # Lidar system
-        "front_lidar": {
-            "type": "lidar",
-            "position": [2.55, 0.0, -0.1],  # Front center, behind grille
-            "orientation": [0, 0, 0],
-            "vertical_fov": 30,
-            "horizontal_fov": 120,
-            "range": 200,
-            "points_per_second": 1000000
-        }
-    }
-
-    return config
-
-
-def create_generic_av_config():
-    """
-    Creates a generic autonomous vehicle sensor configuration with a typical
-    sensor suite including cameras, lidars, and radars.
-
-    Returns:
-        dict: A dictionary containing sensor configurations
-    """
-    # Base vehicle dimensions (in meters)
-    vehicle_length = 4.5  # typical mid-size vehicle length
-    vehicle_width = 1.5   # typical mid-size vehicle width
-    vehicle_height = 1.5  # typical mid-size vehicle height
-
-    # Sensor configuration
-    config = {
-        # Cameras
-        "front_camera": {
-            "type": "camera",
-            "position": [2.1, 0.0, 0.75],  # Center windshield, upper
-            "orientation": [0, 0, 0],
-            "field_of_view": 120,
-            "range": 150,
-            "resolution": [1920, 1080]
-        },
-
-        # Lidar
+        # LiDAR System (for newer models with Level 3 automation which uses a VALEO Scala 2)
+        # Not a 360 degree LIDAR
         "roof_lidar": {
             "type": "lidar",
-            "position": [0.0, 0.0, 0.75],  # Center roof
+            "position": [0.7, 0.0, 1.5],  # Roof center-front
             "orientation": [0, 0, 0],
-            "vertical_fov": 40,
-            "horizontal_fov": 360,  # Full 360° coverage
+            "horizontal_fov": 145 ,
+            "vertical_fov" : 25,
             "range": 200,
-            "points_per_second": 1200000
+            "resolution": [0.1, 0.1]  # angular resolution in degrees
         },
 
-        # Radars
-        "front_radar": {
-            "type": "radar",
-            "position": [2.25, 0.0, -0.5],  # Front bumper center
-            "orientation": [0, 0, 0],
-            "field_of_view": 60,
-            "range": 200,
-            "resolution": "medium"
-        },
-        "rear_radar": {
-            "type": "radar",
-            "position": [-2.25, 0.0, -0.5],  # Rear bumper center
-            "orientation": [0, 0, 180],
-            "field_of_view": 60,
-            "range": 150,
-            "resolution": "medium"
-        },
-        "front_left_radar": {
-            "type": "radar",
-            "position": [2.1, 0.75, -0.5],  # Front left bumper/fender
-            "orientation": [0, 0, 45],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
-        },
-        "front_right_radar": {
-            "type": "radar",
-            "position": [2.1, -0.75, -0.5],  # Front right bumper/fender
-            "orientation": [0, 0, -45],
-            "field_of_view": 120,
-            "range": 100,
-            "resolution": "medium"
-        }
     }
 
     return config
 
-
-def create_sensor_config(config_type="generic_av"):
+def create_sensor_config(config_type="camera_only"):
     """
     Creates a sensor configuration with options for different vehicle types.
 
     Args:
-        config_type (str): Configuration type - "generic_av" (default),
-                          "tesla_vision", "mercedes_drive_pilot"
+        config_type (str): Configuration type - "camera_only" (default),
+                          "sensor_fusion"
 
     Returns:
         dict: A dictionary containing sensor configurations
     """
-    if config_type == "tesla_vision":
+    if config_type == "camera_only":
         return create_tesla_vision_config()
-    elif config_type == "mercedes_drive_pilot":
+    elif config_type == "sensor_fusion":
         return create_mercedes_drive_pilot_config()
-    else:  # generic_av is the default
-        return create_generic_av_config()
+  
