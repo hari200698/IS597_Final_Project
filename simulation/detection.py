@@ -1,226 +1,157 @@
 import numpy as np
 from typing import Dict, List, Tuple, Any
 
-def check_line_of_sight(sensor_pos, target_pos, objects, fog_density=0):
-    """
-    Check if there is a clear line of sight between sensor and target,
-    first using an expanded 2D bounding-box test to skip distant objects.
-
-    Args:
-        sensor_pos: (x, y, z) position of the sensor
-        target_pos: (x, y) position of the target object (z assumed elsewhere)
-        objects:   List of all objects in the simulation (each with 'position', 'width', 'length')
-        fog_density: Fog density factor (0 = clear, 1 = max fog)
-
-    Returns:
-        (is_visible: bool, visibility_factor: float)
-    """
-    sx, sy, sz = sensor_pos
-    tx, ty     = target_pos
-
-    # Quick AABB filter ---------------------------------------------------
-    # Compute segment AABB in 2D
-    min_x, max_x = sorted((sx, tx))
-    min_y, max_y = sorted((sy, ty))
-
-    # Expand by the largest object "radius" (half of width+length)/2
-    # We divide by 4 because width+length gives diameter*2; half of that is (w+l)/4
-    max_size = max((obj['width'] + obj['length']) / 4 for obj in objects)
-
-    min_x -= max_size
-    max_x += max_size
-    min_y -= max_size
-    max_y += max_size
-
-    # Precompute segment vector
-    dx, dy = tx - sx, ty - sy
-    seg_len = np.hypot(dx, dy)
-    if seg_len == 0:
-        # degenerate case: sensor and target coincide
-        return True, 1.0
-
-    ux, uy = dx / seg_len, dy / seg_len
-
-    # 2) Detailed occlusion only for objects in the box -----------------------
-    for obj in objects:
-        ox, oy = obj['position']
-
-        # Skip the target itself - using a small epsilon for floating point comparison
-        # Alternatively, if objects have IDs, compare those instead
-        epsilon = 1e-6
-        if abs(ox - tx) < epsilon and abs(oy - ty) < epsilon:
-            continue
-
-        # AABB cull
-        if not (min_x <= ox <= max_x and min_y <= oy <= max_y):
-            continue
-
-        # Project object center onto the segment (scalar projection)
-        vx, vy = ox - sx, oy - sy
-        proj = vx * ux + vy * uy
-
-        # Only consider if projection falls onto the segment
-        if proj < 0 or proj > seg_len:
-            continue
-
-        # Closest point on the line
-        cx = sx + proj * ux
-        cy = sy + proj * uy
-
-        # Distance from object center to that closest point
-        dist_to_line = np.hypot(cx - ox, cy - oy)
-
-        # Use this specific object's radius rather than the maximum
-        obj_radius = (obj['width'] + obj['length']) / 4
-
-        if dist_to_line < obj_radius:
-            # blocked
-            return False, 0.0
-
-    # 3) No occlusion found – compute visibility factor -----------------------
-    # Straight-line distance (2D)
-    distance = seg_len
-
-    visibility_factor = 1.0
-    if fog_density > 0:
-        visibility_factor *= np.exp(-fog_density * distance / 100)
-
-    return True, visibility_factor
-
 def calculate_detection_probability(sensor, obj, visibility_factor=1.0):
-    """Calculate probability of detecting an object based on sensor capabilities and conditions.
-
-    Args:
-        sensor: Sensor data including type, range, etc.
-        obj: Object data including position, dimensions
-        visibility_factor: Factor representing visibility conditions (0-1)
-
-    Returns:
-        float: Probability of detection between 0-1
+    """
+    Calculates detection probability for a given sensor-object pair, incorporating:
+    - FOV and range checks.
+    - Sensor-specific probability decay (camera: binary, lidar: exponential, radar: sigmoid).
+    - Sensor noise.
+    - Sensor dropout.
+    - Environmental conditions (fog).
     """
     # Extract positions
     sx, sy, sz = sensor['position']
-    tx, ty = obj['position']
+    tx, ty, tz = obj['position']
 
-    # Calculate distance
-    distance = np.sqrt((sx - tx)**2 + (sy - ty)**2)
+    # --- Basic Geometry Check ---
+    distance = np.sqrt((sx - tx)**2 + (sy - ty)**2 + (sz - tz)**2)
 
-    # If beyond max range, no detection possible
     if distance > sensor['range']:
         return 0.0
 
-    # Base probability calculated using a sigmoid curve for more realistic drop-off
-    # 1.0 at close range, gradually decreasing toward max range
-    normalized_distance = distance / sensor['range']
-    midpoint = 0.7  # Position of 0.5 probability
-    steepness = 8  # Controls how quickly probability drops
+    # Field of view check
+    if 'fov' in sensor and sensor['fov'] < 360:
+      # Calculate horizontal angle (azimuth)
+      horizontal_angle = math.degrees(math.atan2(ty - sy, tx - sx))
+      sensor_yaw = sensor['orientation'][2]
+      relative_horizontal = horizontal_angle - sensor_yaw
 
-    base_prob = 1.0 / (1.0 + np.exp(steepness * (normalized_distance - midpoint)))
+      # Normalize to -180 to 180
+      while relative_horizontal > 180:
+          relative_horizontal -= 360
+      while relative_horizontal < -180:
+          relative_horizontal += 360
 
-    # Apply sensor type-specific factors
-    if sensor['type'] == 'camera':
-        # Cameras are affected more by visibility conditions
-        prob = base_prob * visibility_factor**1.5
-    elif sensor['type'] == 'lidar':
-        # LiDAR is less affected by visibility but still impacted
-        prob = base_prob * np.sqrt(visibility_factor)
-    elif sensor['type'] == 'radar':
-        # Radar is least affected by visibility conditions
-        prob = base_prob * visibility_factor**0.25
+      # Check horizontal FOV
+      if abs(relative_horizontal) > sensor['fov'] / 2:
+          return 0.0
+
+      # Calculate vertical angle (elevation)
+      # We need the horizontal distance for this
+      horizontal_distance = math.sqrt((tx - sx)**2 + (ty - sy)**2)
+      vertical_angle = math.degrees(math.atan2(tz - sz, horizontal_distance))
+
+      # Get sensor pitch (if available, otherwise assume 0)
+      sensor_pitch = sensor['orientation'][1] if len(sensor['orientation']) > 1 else 0
+      relative_vertical = vertical_angle - sensor_pitch
+
+      # Normalize to -90 to 90 (vertical angles are between -90 and 90 degrees)
+      if relative_vertical > 90:
+          relative_vertical = 180 - relative_vertical
+      elif relative_vertical < -90:
+          relative_vertical = -180 - relative_vertical
+
+      # Check vertical FOV (if defined, otherwise use a default or derived value)
+      vertical_fov = sensor.get('vertical_fov', sensor['fov'] / 2)  # Default: half of horizontal FOV
+
+      if abs(relative_vertical) > vertical_fov / 2:
+          return 0.0
+    # --- Base Detection Probability by Sensor Type ---
+    sensor_type = sensor['type'].lower()
+
+    # Default value in case parameters are missing
+    detection_prob = 1.0
+
+    if sensor_type == 'camera':
+        # Cameras: Binary detection if within range/FOV
+        detection_prob = 1.0
+
+    elif sensor_type == 'lidar':
+        # Lidar: Exponential decay with distance
+        k = sensor.get('k', 0.01)  # Default decay rate if not specified
+        detection_prob = np.exp(-k * distance)
+
+    elif sensor_type == 'radar':
+        # Radar: Sigmoid decay with distance
+        a = sensor.get('a', 0.1)     # Steepness parameter
+        d0 = sensor.get('d0', sensor['range'] * 0.8)  # Midpoint at 80% of range by default
+        detection_prob = 1 / (1 + np.exp(a * (distance - d0)))
+
     else:
-        prob = base_prob * visibility_factor
+        # Default for unknown sensor types
+        detection_prob = 1.0
 
-    # Different object types have different detection probabilities
-    if obj['type'] == 'pedestrian':
-        # Pedestrians are smaller and harder to detect
-        prob *= 0.9
-    elif obj['type'] == 'vehicle':
-        # Vehicles are larger and easier to detect
-        prob *= 1.1
-    elif obj['type'] == 'cyclist':
-      prob *= 0.85
-    elif obj['type'] == 'static_obstacle':
-      prob *= 0.5
+    # --- Apply Fog Effects ---
+    # Get fog density from global environment_conditions
+    # This is a workaround since we can't modify the function signature
+    global environment_conditions
+    if 'environment_conditions' in globals() and environment_conditions is not None:
+        fog_density = environment_conditions.get('fog_density', 0.0)
+    else:
+        fog_density = 0.0
 
-    # Ensure probability is between 0 and 1
-    return max(0.0, min(1.0, prob))
+    if fog_density > 0:
+        # Convert fog_density (0-1) to meteorological extinction coefficient (β)
+        # Based on Gultepe et al. (2007)
+        # Light fog (0.2): visibility ~1000m (β=0.003)
+        # Moderate fog (0.5): visibility ~300m (β=0.01)
+        # Heavy fog (0.8): visibility ~100m (β=0.03)
+        # Very dense fog (1.0): visibility ~50m (β=0.06)
+        
+        # Meteorological extinction coefficient (β) calculation
+        beta_vis = 0.003 + 0.057 * fog_density**2  # Nonlinear relationship
 
+        # Apply Beer-Lambert law for fog attenuation based on sensor type
+        if sensor_type == 'camera':
+            # Cameras severely affected by fog (Hasirlioglu & Riener, 2020)
+            camera_factor = 1.0  # Full effect
+            fog_attenuation = np.exp(-beta_vis * camera_factor * distance)
+            detection_prob *= fog_attenuation
+            
+        elif sensor_type == 'lidar':
+            # Lidar moderately affected by fog (Bijelic et al., 2018)
+            # 905nm wavelength (common in automotive)
+            lidar_factor = 0.7  # 70% of visual extinction
+            fog_attenuation = np.exp(-beta_vis * lidar_factor * distance)
+            detection_prob *= fog_attenuation
+            
+        elif sensor_type == 'radar':
+            # Radar minimally affected by fog (Brooker, 2007)
+            # 77GHz automotive radar
+            radar_factor = 0.05  # Only 5% of visual extinction
+            fog_attenuation = np.exp(-beta_vis * radar_factor * distance)
+            detection_prob *= fog_attenuation
 
-def sensor_fusion_detection(sensors, obj,all_objects, environment_conditions=None):
-    """
-    Determine if an object is detected using fuzzy logic sensor fusion.
+    # Clip to [0,1] (just in case numerical errors push it outside)
+    detection_prob = max(0.0, min(1.0, detection_prob * visibility_factor))
 
-    Args:
-        sensors: List of sensor configurations
-        obj: Object to detect
-        environment_conditions: Dict of environmental conditions
+    # --- Sensor Noise (Gaussian) ---
+    # Bar-Shalom et al. 2001: Zero-mean Gaussian noise typical
+    if sensor_type == 'camera':
+        sigma = 0.03
+    elif sensor_type == 'lidar':
+        sigma = 0.05
+    elif sensor_type == 'radar':
+        sigma = 0.02
+    else:
+        sigma = 0.04  # default
 
-    Returns:
-        tuple: (is_detected, confidence, sensor_probabilities)
-    """
-    if environment_conditions is None:
-        environment_conditions = {'fog_density': 0.0}
+    noise = np.random.normal(0, sigma)
+    detection_prob += noise
 
-    # Step 1: Calculate individual sensor detection probabilities
-    sensor_probs = {}
-    for sensor in sensors:
-        # Check for line of sight considering occlusions
-        has_los, visibility_factor = check_line_of_sight(
-            sensor['position'],
-            obj['position'],
-            all_objects,
-            environment_conditions.get('fog_density', 0.0)
-        )
+    detection_prob = max(0.0, min(1.0, detection_prob))
 
-        if not has_los:
-            sensor_probs[sensor['name']] = 0.0
-            continue
-
-        # Calculate detection probability
-        detection_prob = calculate_detection_probability(sensor, obj, visibility_factor)
-        sensor_probs[sensor['name']] = detection_prob
-
-    # Step 2: Fuzzification - Convert probabilities to fuzzy membership values
-    fuzzy_memberships = {}
-    for sensor_name, prob in sensor_probs.items():
-        # Define membership in "Detected" and "Not Detected" fuzzy sets
-        fuzzy_memberships[sensor_name] = {
-            'detected': prob,
-            'not_detected': 1.0 - prob
-        }
-
-    # Step 3: Apply fuzzy rules
-    # Rule 1: If any sensor has high detection probability, object is likely detected
-    # Rule 2: If multiple sensors have medium detection probability, object is likely detected
-    # Rule 3: If all sensors have low detection probability, object is likely not detected
-
-    # Calculate rule strengths
-    high_detection_strength = max([m['detected'] for m in fuzzy_memberships.values()], default=0)
-
-    # For Rule 2 - Consider average of top 2 sensors if available
-    sorted_probs = sorted([m['detected'] for m in fuzzy_memberships.values()], reverse=True)
-    multi_sensor_strength = sum(sorted_probs[:2])/2 if len(sorted_probs) >= 2 else 0
-
-    low_detection_strength = min([m['not_detected'] for m in fuzzy_memberships.values()], default=1)
-
-    # Step 4: Combine rule outputs
-    # Weight the rules based on their importance
-    rule_weights = {
-        'high_detection': 0.5,      # Weight for rule 1
-        'multi_sensor': 0.4,        # Weight for rule 2
-        'low_detection': 0.1        # Weight for rule 3
+    # --- Sensor Dropout (Bernoulli) ---
+    dropout_rates = {
+        'camera': 0.001,
+        'lidar': 0.005,
+        'radar': 0.0005
     }
 
-    # Calculate final fuzzy confidence score
-    detection_confidence = (
-        high_detection_strength * rule_weights['high_detection'] +
-        multi_sensor_strength * rule_weights['multi_sensor'] +
-        (1 - low_detection_strength) * rule_weights['low_detection']
-    )
+    dropout_chance = dropout_rates.get(sensor_type, 0.002)
 
-    # Step 5: Defuzzification - Convert to binary decision
-    # Use a threshold to determine final detection
-    detection_threshold = 0.6  # Adjust based on preferred sensitivity
-    is_detected = detection_confidence >= detection_threshold
+    if random.random() < dropout_chance:
+        detection_prob = 0.0
 
-    return is_detected, detection_confidence, sensor_probs
+    return detection_prob
