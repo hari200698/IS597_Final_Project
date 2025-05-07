@@ -8,14 +8,12 @@ class Lidar(Sensor):
     Attributes:
         horizontal_fov (float): Horizontal field of view in degrees
         vertical_fov (float): Vertical field of view in degrees
-        points_per_second (int): Point cloud density
     """
     def __init__(self, name: str, position: Position3D, range: float,
-                 horizontal_fov: float, vertical_fov: float, points_per_second: int):
+                 horizontal_fov: float, vertical_fov: float):
         super().__init__(name, "lidar", position, range)
         self.horizontal_fov = horizontal_fov
         self.vertical_fov = vertical_fov
-        self.points_per_second = points_per_second
 
     def can_detect(self, target_position: Position3D) -> bool:
         """
