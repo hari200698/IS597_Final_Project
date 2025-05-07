@@ -50,7 +50,7 @@ class Position3D:
         )
 
     def distance_to(self, other: 'Position3D') -> float:
-        """Calculate Euclidean distance to another Position3D."""
+        """ Calculate Euclidean distance to another Position3D."""
         return math.sqrt(
             (self.x - other.x) ** 2 +
             (self.y - other.y) ** 2 +
@@ -78,14 +78,13 @@ class Position3D:
         # Calculate yaw (azimuth angle)
         target_yaw = math.degrees(math.atan2(dy, dx))
 
-        # Calculate roll - in this simple scenario, we'll use the same roll as the current position
+        # Calculate roll - in this simple scenario, using the same roll as the current position
         target_roll = self.roll
 
-        # Adjust for current orientation
-        # Corrected relative pitch (considering current pitch orientation)
+        # Relative pitch (considering current pitch orientation)
         relative_pitch = target_pitch - self.pitch
 
-        # Adjust yaw for current orientation - normalize to -180 to +180 range
+        # Adjusting yaw for current orientation - normalizing to -180 to +180 range
         relative_yaw = target_yaw - self.yaw
         if relative_yaw > 180:
             relative_yaw -= 360
@@ -103,19 +102,19 @@ class Position3D:
         return relative_roll, relative_pitch, relative_yaw
 
     def is_within_field_of_view(self, target: 'Position3D',
-                               fov_horizontal: float, fov_vertical: float) -> bool:
+                               horizontal_fov: float, vertical_fov: float) -> bool:
         """
         Check if target position is within field of view from this position.
 
         Args:
             target: Target position to check
-            fov_horizontal: Horizontal field of view in degrees
-            fov_vertical: Vertical field of view in degrees
+            horizontal_fov: Horizontal field of view in degrees
+            vertical_fov: Vertical field of view in degrees
 
         Returns:
             bool: True if target is within field of view
         """
         _, rel_pitch, rel_yaw = self.direction_to(target)
 
-        return (abs(rel_yaw)   <= fov_horizontal / 2 and
-                abs(rel_pitch) <= fov_vertical   / 2)
+        return (abs(rel_yaw)   <= horizontal_fov / 2 and
+                abs(rel_pitch) <= vertical_fov   / 2)
